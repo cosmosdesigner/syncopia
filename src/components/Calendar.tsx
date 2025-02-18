@@ -173,7 +173,7 @@ export function Calendar({
                 min-h-24 p-2 border border-gray-200 relative
                 ${!isSameMonth(day, currentDate) ? "bg-gray-50" : "bg-white"}
                 ${isToday(day) ? "border-blue-500 border-2" : ""}
-                ${isSelected(day) ? "bg-blue-100 border-blue-200" : ""}
+                ${isSelected(day) ? "bg-blue-300 border-blue-300" : ""}
                 hover:bg-gray-50 cursor-pointer
                 transition-colors duration-150 ease-in-out
               `}

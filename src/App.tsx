@@ -1,10 +1,12 @@
-import React from "react";
-import { useParams, Navigate } from "react-router-dom";
+import React, { useState } from "react";
+import { useParams, Navigate, Link } from "react-router-dom";
 import { Calendar } from "./components/Calendar";
 import { EventForm } from "./components/EventForm";
 import { UserSettings } from "./components/UserSettings";
 import { useCalendar } from "./hooks/useCalendar";
 import { Pencil } from "lucide-react";
+import { HomeIcon } from "lucide-react";
+
 import toast from "react-hot-toast";
 import { Event } from "./lib/api";
 
@@ -29,6 +31,7 @@ const CalendarView = () => {
     updateUserPreferences,
   } = useCalendar(id ?? "");
 
+  const [calendarName, setCalendarName] = useState("New Calendar");
   if (!id) {
     return <Navigate to="/" />;
   }
@@ -115,12 +118,18 @@ const CalendarView = () => {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
+            <Link to={"/"}>
+              <HomeIcon />
+            </Link>
             {isEditingName ? (
               <input
                 type="text"
-                value={calendar?.name}
-                onChange={(e) => updateCalendarName(e.target.value)}
-                onBlur={() => setIsEditingName(false)}
+                value={calendarName}
+                onChange={(e) => setCalendarName(e.target.value)}
+                onBlur={(e) => {
+                  setIsEditingName(false);
+                  updateCalendarName(e.target.value);
+                }}
                 autoFocus
                 className="text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2"
               />
