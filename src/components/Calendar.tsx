@@ -1,6 +1,5 @@
 import {
   addMonths,
-  differenceInDays,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -62,6 +61,7 @@ export function Calendar({
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventSummaryOpen, setIsEventSummaryOpen] = useState(true);
+  const [includeWeekends, setIncludeWeekends] = useState(true);
 
   const monthStart = startOfWeek(startOfMonth(currentDate));
   const monthEnd = endOfWeek(endOfMonth(currentDate));
@@ -166,12 +166,23 @@ export function Calendar({
   ) => {
     const monthStart = startOfMonth(monthDate);
     const monthEnd = lastDayOfMonth(monthDate);
-
     const start = eventStart < monthStart ? monthStart : eventStart;
     const end = eventEnd > monthEnd ? monthEnd : eventEnd;
 
     if (start > monthEnd || end < monthStart) return 0;
-    return differenceInDays(end, start) + 1;
+
+    let days = 0;
+    let currentDate = start;
+
+    while (currentDate <= end) {
+      const dayOfWeek = currentDate.getDay();
+      if (includeWeekends || (dayOfWeek !== 0 && dayOfWeek !== 6)) {
+        days++;
+      }
+      currentDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
+    }
+
+    return days;
   };
 
   const getMonthEvents = () => {
@@ -369,11 +380,25 @@ export function Calendar({
             <ChevronRightDouble className="w-4 h-4" />
           </button>
           <div
-            className={`pl-4 transition-opacity duration-300 ${
+            className={`pl-4 transition-opacity duration-300 space-y-4 ${
               isEventSummaryOpen ? "opacity-100" : "opacity-0 hidden"
             }`}
           >
             <h3 className="text-lg font-semibold mb-4">Events Summary</h3>
+            <div className="flex items-center gap-2">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeWeekends}
+                  onChange={(e) => setIncludeWeekends(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <span className="ms-3 text-sm font-medium text-gray-700">
+                  Include weekends
+                </span>
+              </label>
+            </div>
             <div className="space-y-2">
               {getMonthEvents().map((group) => (
                 <div
