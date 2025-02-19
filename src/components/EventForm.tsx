@@ -12,7 +12,7 @@ interface EventFormProps {
   onSubmit: (
     title: string,
     description: string,
-    startDate: Date,
+    startData: Date,
     endDate: Date
   ) => void;
   onClose: () => void;
@@ -29,6 +29,7 @@ export function EventForm({
   const [description, setDescription] = useState(event?.description || "");
   const [start, setStart] = useState(format(startDate, "yyyy-MM-dd"));
   const [end, setEnd] = useState(format(endDate, "yyyy-MM-dd"));
+  const today = format(new Date(), "yyyy-MM-dd");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +88,7 @@ export function EventForm({
                 <input
                   type="date"
                   value={start}
+                  min={today}
                   onChange={(e) => setStart(e.target.value)}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
@@ -98,9 +100,9 @@ export function EventForm({
                 <input
                   type="date"
                   value={end}
+                  min={start}
                   onChange={(e) => setEnd(e.target.value)}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  min={start}
                 />
               </div>
             </div>

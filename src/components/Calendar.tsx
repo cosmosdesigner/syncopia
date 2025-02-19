@@ -1,11 +1,15 @@
 import {
   addMonths,
+  differenceInDays,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
   format,
+  isSameDay,
   isSameMonth,
   isToday,
+  isWithinInterval,
+  lastDayOfMonth,
   parseISO,
   startOfMonth,
   startOfWeek,
@@ -15,6 +19,7 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  ChevronRight as ChevronRightDouble,
   Pencil,
   Trash2,
   User,
@@ -37,6 +42,13 @@ interface CalendarProps {
   onEventDelete: (id: string) => void;
 }
 
+interface EventGroup {
+  title: string;
+  color: string;
+  monthlyDays: { [key: string]: number };
+  events: Event[];
+}
+
 export function Calendar({
   events,
   onDateSelect,
@@ -49,12 +61,18 @@ export function Calendar({
   const [selectionEnd, setSelectionEnd] = useState<Date | null>(null);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [isEventSummaryOpen, setIsEventSummaryOpen] = useState(true);
 
   const monthStart = startOfWeek(startOfMonth(currentDate));
   const monthEnd = endOfWeek(endOfMonth(currentDate));
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const handleDateClick = (date: Date) => {
+    if (date < new Date(new Date().setHours(0, 0, 0, 0))) {
+      toast.error("Cannot create events in the past");
+      return;
+    }
+
     if (!selectionStart) {
       setSelectionStart(date);
       setSelectionEnd(null);
@@ -78,7 +96,11 @@ export function Calendar({
     if (!selectionStart || !selectionEnd) return false;
     const start = selectionEnd < selectionStart ? selectionEnd : selectionStart;
     const end = selectionEnd < selectionStart ? selectionStart : selectionEnd;
-    return date >= start && date <= end;
+    return (
+      isSameDay(date, start) ||
+      isSameDay(date, end) ||
+      (date > start && date < end)
+    );
   };
 
   const getDayEvents = (date: Date) => {
@@ -137,113 +159,249 @@ export function Calendar({
     setSelectedEvent(event);
   };
 
+  const calculateDaysInMonth = (
+    eventStart: Date,
+    eventEnd: Date,
+    monthDate: Date
+  ) => {
+    const monthStart = startOfMonth(monthDate);
+    const monthEnd = lastDayOfMonth(monthDate);
+
+    const start = eventStart < monthStart ? monthStart : eventStart;
+    const end = eventEnd > monthEnd ? monthEnd : eventEnd;
+
+    if (start > monthEnd || end < monthStart) return 0;
+    return differenceInDays(end, start) + 1;
+  };
+
+  const getMonthEvents = () => {
+    const start = startOfMonth(currentDate);
+    const end = endOfMonth(currentDate);
+
+    const relevantEvents = events.filter((event) => {
+      const eventStart = parseISO(event.start_date);
+      const eventEnd = parseISO(event.end_date);
+      return (
+        isWithinInterval(eventStart, { start, end }) ||
+        isWithinInterval(eventEnd, { start, end }) ||
+        (eventStart <= start && eventEnd >= end)
+      );
+    });
+
+    const groups: Record<string, EventGroup> = {};
+    relevantEvents.forEach((event) => {
+      if (!groups[event.title]) {
+        groups[event.title] = {
+          title: event.title,
+          color: event.user_color,
+          monthlyDays: {},
+          events: [],
+        };
+      }
+
+      const eventStart = parseISO(event.start_date);
+      const eventEnd = parseISO(event.end_date);
+
+      // Only calculate days for current month
+      const currentMonthDays = calculateDaysInMonth(
+        eventStart,
+        eventEnd,
+        currentDate
+      );
+      if (currentMonthDays > 0) {
+        const monthKey = format(currentDate, "MMMM");
+        groups[event.title].monthlyDays[monthKey] =
+          (groups[event.title].monthlyDays[monthKey] || 0) + currentMonthDays;
+      }
+
+      groups[event.title].events.push(event);
+    });
+
+    return Object.values(groups).sort((a, b) => {
+      const aTotalDays = Object.values(a.monthlyDays).reduce(
+        (sum, days) => sum + days,
+        0
+      );
+      const bTotalDays = Object.values(b.monthlyDays).reduce(
+        (sum, days) => sum + days,
+        0
+      );
+      return bTotalDays - aTotalDays;
+    });
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-          className="p-2 hover:bg-gray-100 rounded-full"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-semibold">
-          {format(currentDate, "MMMM yyyy")}
-        </h2>
-        <button
-          onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-          className="p-2 hover:bg-gray-100 rounded-full"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-          <div key={day} className="text-center font-medium text-gray-500 py-2">
-            {day}
-          </div>
-        ))}
-        {days.map((day) => {
-          const dayEvents = getDayEvents(day);
-          return (
+    <div className="bg-white rounded-lg shadow p-6 flex gap-6">
+      <div className="flex-1">
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+            className="p-2 hover:bg-gray-100 rounded-full"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="text-xl font-semibold">
+            {format(currentDate, "MMMM yyyy")}
+          </h2>
+          <button
+            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+            className="p-2 hover:bg-gray-100 rounded-full"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
             <div
-              key={day.toISOString()}
-              onClick={() => handleDateClick(day)}
-              onMouseEnter={() => handleMouseEnter(day)}
-              className={`
-                min-h-24 p-2 border border-gray-200 relative
+              key={day}
+              className="text-center font-medium text-gray-500 py-2"
+            >
+              {day}
+            </div>
+          ))}
+          {days.map((day) => {
+            const dayEvents = getDayEvents(day);
+            return (
+              <div
+                key={day.toISOString()}
+                onClick={() => handleDateClick(day)}
+                onMouseEnter={() => handleMouseEnter(day)}
+                className={`relative
+                min-h-24 p-2 border border-gray-200
                 ${!isSameMonth(day, currentDate) ? "bg-gray-50" : "bg-white"}
-                ${isToday(day) ? "border-blue-500 border-2" : ""}
-                ${isSelected(day) ? "bg-blue-300 border-blue-300" : ""}
-                hover:bg-gray-50 cursor-pointer
+                ${isSelected(day) ? "bg-slate-100" : ""}
+                ${isToday(day) ? "border-slate-400 border-1" : ""}
+                ${
+                  day < new Date(new Date().setHours(0, 0, 0, 0))
+                    ? "bg-gray-100"
+                    : "hover:bg-gray-50 cursor-pointer"
+                }
                 transition-colors duration-150 ease-in-out
               `}
-            >
-              <span
-                className={`
-                text-sm ${!isSameMonth(day, currentDate) ? "text-gray-400" : ""}
-                ${isToday(day) ? "text-blue-500 font-bold" : ""}
-                ${isSelected(day) ? "text-blue-800" : ""}
-              `}
               >
-                {format(day, "d")}
-              </span>
-              <div className="mt-1 space-y-1">
-                {dayEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="text-xs p-1 rounded group relative"
-                    style={{ backgroundColor: event.user_color + "40" }}
-                    onClick={(e) => handleEventClick(event, e)}
-                  >
-                    {editingEvent?.id === event.id ? (
-                      <input
-                        type="text"
-                        value={editingEvent.title}
-                        onChange={(e) =>
-                          setEditingEvent({
-                            ...editingEvent,
-                            title: e.target.value,
-                          })
-                        }
-                        onBlur={() => handleEventUpdate(editingEvent)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleEventUpdate(editingEvent)
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
-                        autoFocus
-                      />
-                    ) : (
-                      <>
-                        <span className="truncate">{event.title}</span>
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1">
-                          <button
-                            onClick={(e) => handleEventEdit(event, e)}
-                            className="p-1 hover:bg-black/10 rounded"
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={(e) => handleEventDelete(event, e)}
-                            className="p-1 hover:bg-black/10 rounded text-red-600"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {dayEvents.length > 2 && (
-                  <div className="text-xs text-gray-500">
-                    +{dayEvents.length - 2} more
-                  </div>
-                )}
+                <span
+                  className={`
+                text-sm ${!isSameMonth(day, currentDate) ? "text-gray-400" : ""}
+                ${isSelected(day) ? "text-slate-800" : ""}
+                ${isToday(day) ? "text-slate-500 font-bold" : ""}
+              `}
+                >
+                  {format(day, "d")}
+                </span>
+                <div className="mt-1 space-y-1">
+                  {dayEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="text-xs p-1 rounded group relative overflow-hidden"
+                      style={{ backgroundColor: event.user_color + "40" }}
+                      onClick={(e) => handleEventClick(event, e)}
+                      title={event.title}
+                    >
+                      {editingEvent?.id === event.id ? (
+                        <input
+                          type="text"
+                          value={editingEvent.title}
+                          onChange={(e) =>
+                            setEditingEvent({
+                              ...editingEvent,
+                              title: e.target.value,
+                            })
+                          }
+                          onBlur={() => handleEventUpdate(editingEvent)}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && handleEventUpdate(editingEvent)
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
+                          autoFocus
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="truncate block flex-1">
+                              {event.title}
+                            </span>
+                            <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={(e) => handleEventEdit(event, e)}
+                                className="p-1 hover:bg-black/10 rounded"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => handleEventDelete(event, e)}
+                                className="p-1 hover:bg-black/10 rounded text-red-600"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  {dayEvents.length > 2 && (
+                    <div className="text-xs text-gray-500">
+                      +{dayEvents.length - 2} more
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
+
+      <div
+        className={`border-l transition-all duration-300 ease-in-out ${
+          isEventSummaryOpen ? "w-64" : "w-8"
+        }`}
+      >
+        <div className="flex items-start">
+          <button
+            onClick={() => setIsEventSummaryOpen(!isEventSummaryOpen)}
+            className="p-2 hover:bg-gray-100 rounded-full transform transition-transform duration-300"
+            style={{
+              transform: isEventSummaryOpen ? "rotate(180deg)" : "rotate(0deg)",
+            }}
+          >
+            <ChevronRightDouble className="w-4 h-4" />
+          </button>
+          <div
+            className={`pl-4 transition-opacity duration-300 ${
+              isEventSummaryOpen ? "opacity-100" : "opacity-0 hidden"
+            }`}
+          >
+            <h3 className="text-lg font-semibold mb-4">Events Summary</h3>
+            <div className="space-y-2">
+              {getMonthEvents().map((group) => (
+                <div
+                  key={group.title}
+                  className="flex items-center justify-between px-4 py-2 rounded-lg transition-colors"
+                  style={{ backgroundColor: group.color + "20" }}
+                  title={group.title}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: group.color }}
+                    />
+                    <span className="font-medium truncate max-w-[120px]">
+                      {group.title}
+                    </span>
+                  </div>
+                  <span className="text-sm">
+                    {Object.values(group.monthlyDays)[0]}{" "}
+                    {Object.values(group.monthlyDays)[0] === 1 ? "day" : "days"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {selectedEvent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md relative">
