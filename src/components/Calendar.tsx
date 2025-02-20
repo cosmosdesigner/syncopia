@@ -26,6 +26,7 @@ import toast from "react-hot-toast";
 import { Database } from "../lib/database.types";
 import { Event as EventComponent } from "./Event";
 import { EventSummary } from "./EventSummary";
+import { getPortugueseHolidays } from "../lib/holidays";
 
 type Event = Database["public"]["Tables"]["events"]["Row"];
 
@@ -54,6 +55,8 @@ export function Calendar({
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventSummaryOpen, setIsEventSummaryOpen] = useState(true);
   const [includeWeekends, setIncludeWeekends] = useState(true);
+  const [includeHolidays, setIncludeHolidays] = useState(true);
+  const holidays = getPortugueseHolidays(currentDate.getFullYear());
 
   const monthStart = startOfWeek(startOfMonth(currentDate));
   const monthEnd = endOfWeek(endOfMonth(currentDate));
@@ -210,6 +213,16 @@ export function Calendar({
                 >
                   {format(day, "d")}
                 </span>
+                {holidays.map(
+                  (holiday) =>
+                    holiday.date === format(day, "yyyy-MM-dd") && (
+                      <div
+                        key={holiday.name}
+                        className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full mt-1 mr-1"
+                        title={holiday.name}
+                      />
+                    )
+                )}
                 <div className="mt-1 space-y-1">
                   {dayEvents.map((event) => (
                     <EventComponent
@@ -239,8 +252,10 @@ export function Calendar({
         currentDate={currentDate}
         isOpen={isEventSummaryOpen}
         includeWeekends={includeWeekends}
+        includeHolidays={includeHolidays}
         onToggle={() => setIsEventSummaryOpen(!isEventSummaryOpen)}
         onWeekendToggle={setIncludeWeekends}
+        onHolidayToggle={setIncludeHolidays}
       />
 
       {selectedEvent && (

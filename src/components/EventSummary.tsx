@@ -9,6 +9,7 @@ import {
   isWithinInterval,
   lastDayOfMonth,
 } from "date-fns";
+import { getPortugueseHolidays } from "../lib/holidays";
 
 type Event = Database["public"]["Tables"]["events"]["Row"];
 
@@ -24,8 +25,10 @@ interface EventSummaryProps {
   currentDate: Date;
   isOpen: boolean;
   includeWeekends: boolean;
+  includeHolidays: boolean;
   onToggle: () => void;
   onWeekendToggle: (include: boolean) => void;
+  onHolidayToggle: (include: boolean) => void;
 }
 
 export function EventSummary({
@@ -33,9 +36,13 @@ export function EventSummary({
   currentDate,
   isOpen,
   includeWeekends,
+  includeHolidays,
   onToggle,
   onWeekendToggle,
+  onHolidayToggle,
 }: EventSummaryProps) {
+  const holidays = getPortugueseHolidays(currentDate.getFullYear());
+
   const calculateDaysInMonth = (
     eventStart: Date,
     eventEnd: Date,
@@ -52,8 +59,14 @@ export function EventSummary({
     let currentDate = start;
 
     while (currentDate <= end) {
+      const dateStr = format(currentDate, "yyyy-MM-dd");
       const dayOfWeek = currentDate.getDay();
-      if (includeWeekends || (dayOfWeek !== 0 && dayOfWeek !== 6)) {
+      const isHoliday = holidays.some((h) => h.date === dateStr);
+
+      if (
+        (includeWeekends || (dayOfWeek !== 0 && dayOfWeek !== 6)) &&
+        (includeHolidays || !isHoliday)
+      ) {
         days++;
       }
       currentDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
@@ -150,6 +163,20 @@ export function EventSummary({
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               <span className="ms-3 text-sm font-medium text-gray-700">
                 Include weekends
+              </span>
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeHolidays}
+                onChange={(e) => onHolidayToggle(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <span className="ms-3 text-sm font-medium text-gray-700">
+                Include holidays
               </span>
             </label>
           </div>
